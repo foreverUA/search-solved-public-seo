@@ -1,4 +1,4 @@
-# Automatic Website Migration Tool by Lee Foot (https://LeeFoot.co.uk)
+# Automatic Website Migration Tool by Lee Foot (https://LeeFoot.com)
 
 ## How to Use
 

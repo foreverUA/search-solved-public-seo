@@ -1,8 +1,10 @@
-# Lee Foot GitHub Repository: SEO Scripts and Apps
-Developed and maintained by [LeeFootSEO](https://leefoot.com).
+# Lee Foot SEO Tools & Scripts Repository
 
-Follow me: [@LeeFootSEO](https://twitter.com/LeeFootSEO)
+A comprehensive collection of SEO tools, Streamlit applications, and data analysis scripts developed by Lee Foot.
 
+🌐 Website: LeeFoot.com
+📧 Contact: hello@LeeFoot.com
+🐦 X (Twitter): @LeeFootSEO
 A treasure trove of SEO scripts and applications designed to supercharge your digital marketing strategies. This collection is a culmination of practical, scripts developed whilst automating my day job as an [eCommerce SEO Consultant](https://leefoot.com). Dive into a range of tools, from automating mundane tasks to extracting valuable insights from your data.
 
 ## Featured Scripts and Apps

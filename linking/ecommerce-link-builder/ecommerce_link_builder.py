@@ -1,127 +1,217 @@
-####################################################################################
-# Website  : https://leefoot.co.uk/                                                #
-# Contact  : https://leefoot.co.uk/hire-me/                                        #
-# LinkedIn : https://www.linkedin.com/in/lee-foot/                                 #
-# Twitter  : https://twitter.com/LeeFootSEO                                        #
-####################################################################################
+"""
+Brand Stockists SERP Scraper using ValueSERP API
 
-import time
+Website  : https://leefoot.co.uk/
+Contact  : https://leefoot.co.uk/hire-me/
+LinkedIn : https://www.linkedin.com/in/lee-foot/
+Twitter  : https://twitter.com/LeeFootSEO
+"""
+
 import json
+import os
+import time
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
+
 import pandas as pd
 import requests
-import os
-startTime = time.time()
 
-# get the current working directory and print
-path = os.getcwd()
-print(path)
 
-# read in the zenserp.com key to scrape the serps
-with open(path +'/zenserp_key.txt', 'r') as file:  # read in the Keywords Everywhere API Key
-    zenserp_key = file.read()
+# Constants
+VALUESERP_API_KEY = "your-key-here"  # Replace with your actual ValueSERP API key
 
-# read in the list of brands
-with open(path +'/brands.txt', 'r') as file:  # read in the Keywords Everywhere API Key
-    brands = file.read().splitlines()
+# Google Domain Examples:
+# UK: google.co.uk with gl=gb, hl=en
+# USA: google.com with gl=us, hl=en
+# Canada: google.ca with gl=ca, hl=en
+# Australia: google.com.au with gl=au, hl=en
 
-# make a temp dataframe to append the word 'stockists'
-df = pd.DataFrame(brands, columns=["brand"])
-df['stockists'] = " Stockists"
-df['brand'] = df['brand'] + df['stockists']
-total = len(df['brand'])
-search_terms = df['brand'].tolist()  # dump search term queries to a list (to loop through with the Search Console API)
+GOOGLE_DOMAIN = "google.co.uk"  # Change to google.com for USA results
+COUNTRY_CODE = "gb"             # Change to "us" for USA results
+LANGUAGE = "en"
+STOCKISTS_SUFFIX = " Stockists"
+TARGET_POSITION = 1
+HOMEPAGE_DEPTH = 2
+OUTPUT_FILENAME = "brand_links_output.csv"
+BRANDS_FILENAME = "brands.txt"
 
-# make empty list and dataframe to store the extracted data
-df_final = pd.DataFrame(None)
-url_list = []
-description_list = []
-title_list = []
-query_list = []
-df_position = []
-count = 0
-for i in search_terms:
-    count = count + 1
-    print("Searching:", i.strip(), count, "of", total)
-    headers = {"apikey": zenserp_key}
-    params = (
-        ("q", i),
-        ("device", "desktop"),
-        ("search_engine", "google.co.uk"),
-        ("location", "London,England,United Kingdom"),
-        ("gl", "GB"),
-        ("hl", "en"),
-        ("apikey", zenserp_key),
-    )
 
-    response = requests.get('https://app.zenserp.com/api/v2/search', headers=headers, params=params);
+def read_file(filepath: Path) -> str:
+    """Read content from a file."""
+    try:
+        return filepath.read_text(encoding='utf-8').strip()
+    except FileNotFoundError:
+        raise FileNotFoundError(f"Required file not found: {filepath}")
+    except Exception as e:
+        raise Exception(f"Error reading file {filepath}: {e}")
 
-    # Get JSON Data
-    d = response.json()
-    json_str = json.dumps(d)  # dumps the json object into an element
-    resp = json.loads(json_str)  # load the json to a string
-    organic = (resp['organic'])
 
-    # get the length of the list to iterate over in the loop
-    list_len = len(organic)
-    pos_counter = 0
-    counter = 0
-    while counter != list_len:
-        access = (organic[counter])
-        pos_counter = pos_counter + 1
-        df_position.append(pos_counter)
-        try:
-            my_url = (access['url'])
-            url_list.append(my_url)
-        except Exception:
-            url_list.append("MISSING")
-            pass
+def get_api_key() -> str:
+    """Return the ValueSERP API key."""
+    return VALUESERP_API_KEY
 
-        try:
-            my_description = (access['description'])
-            description_list.append(my_description)
-        except Exception:
-            description_list.append("MISSING")
-            pass
 
-        try:
-            my_title = (access['title'])
-            title_list.append(my_title)
-        except Exception:
-            title_list.append("MISSING")
-            pass
+def load_brands(base_path: Path) -> List[str]:
+    """Load brand names from file and return as list."""
+    content = read_file(base_path / BRANDS_FILENAME)
+    return [line.strip() for line in content.splitlines() if line.strip()]
 
-        query = (resp['query'])
-        q_access = (query['q'])
-        query_list.append(q_access)
 
-        counter = counter +1
+def create_search_queries(brands: List[str]) -> List[str]:
+    """Create search queries by appending 'Stockists' to each brand."""
+    return [f"{brand}{STOCKISTS_SUFFIX}" for brand in brands]
 
-# add lists to dataframe columns
-df_final['query'] = query_list
-df_final['url'] = url_list
-df_final['title'] = title_list
-df_final['description'] = description_list
-df_final['position'] = df_position
 
-# clean the data!
-df_final = df_final[df_final.position == 1]  # keep position 1 result for each search only
-df_final = df_final[~df_final["url"].isin(['MISSING'])]
-df_final = df_final[~df_final["description"].isin(['MISSING'])]
-df_final = df_final[~df_final["title"].isin(['MISSING'])]
-df_final["temp_url"] = df_final.loc[:, ["url"]]
+def make_serp_request(query: str, api_key: str) -> Dict:
+    """Make a single SERP API request using ValueSERP."""
+    params = {
+        'api_key': api_key,
+        'q': query,
+        'google_domain': GOOGLE_DOMAIN,
+        'gl': COUNTRY_CODE,
+        'hl': LANGUAGE
+    }
+    
+    try:
+        api_result = requests.get('https://api.valueserp.com/search', params)
+        api_result.raise_for_status()
+        return api_result.json()
+    except requests.RequestException as e:
+        print(f"API request failed for query '{query}': {e}")
+        return {}
 
-# Remove homepages. Ensures consistancy by adding extra ///// which are removed so all domains are stripped back
-df_final["temp_url"] = df_final["temp_url"] + "/////"
-df_final["temp_url"] = df_final["temp_url"].str.replace("//////", "")
-df_final["temp_url"] = df_final["temp_url"].str.replace("/////", "")
-df_final['url_depth'] = df_final["temp_url"].str.count("/")
-df_final = df_final[~df_final['url_depth'].isin(["2"])]  # depth 2 = homepage link
 
-# clean and sort the columns
-cols = "query", "url", "title", "description"
-df_final = df_final.reindex(columns=cols)
-df_final.drop_duplicates(subset=['url'], keep="first", inplace=True)
+def extract_organic_result(result: Dict, query: str, position: int) -> Optional[Dict[str, str]]:
+    """Extract data from a single organic search result."""
+    try:
+        return {
+            'query': query,
+            'url': result.get('link', 'MISSING'),
+            'title': result.get('title', 'MISSING'),
+            'description': result.get('snippet', 'MISSING'),
+            'position': position
+        }
+    except Exception as e:
+        print(f"Error extracting result data: {e}")
+        return None
 
-# export the data
-df_final.to_csv(path + '/brand_links_output.csv')
-print(f'\nCompleted in {time.time() - startTime:.2f} Seconds')
+
+def process_search_results(search_data: Dict, query: str) -> List[Dict[str, str]]:
+    """Process search results and extract organic data."""
+    results = []
+    organic_results = search_data.get('organic_results', [])
+    
+    for position, result in enumerate(organic_results, 1):
+        extracted_result = extract_organic_result(result, query, position)
+        if extracted_result:
+            results.append(extracted_result)
+    
+    return results
+
+
+def calculate_url_depth(url: str) -> int:
+    """Calculate the depth of a URL by counting forward slashes."""
+    if url == 'MISSING':
+        return 0
+    
+    # Normalize URL by removing trailing slashes
+    normalized_url = url.rstrip('/')
+    return normalized_url.count('/')
+
+
+def clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
+    """Clean and filter the dataframe according to business rules."""
+    # Filter to position 1 results only
+    df = df[df['position'] == TARGET_POSITION].copy()
+    
+    # Remove rows with missing data
+    df = df[~df['url'].isin(['MISSING'])]
+    df = df[~df['description'].isin(['MISSING'])]
+    df = df[~df['title'].isin(['MISSING'])]
+    
+    # Calculate URL depth and remove homepages
+    df['url_depth'] = df['url'].apply(calculate_url_depth)
+    df = df[df['url_depth'] != HOMEPAGE_DEPTH]
+    
+    # Select final columns and remove duplicates
+    final_columns = ['query', 'url', 'title', 'description']
+    df = df[final_columns].copy()
+    df.drop_duplicates(subset=['url'], keep='first', inplace=True)
+    
+    return df
+
+
+def scrape_brand_stockists(base_path: Optional[Path] = None) -> pd.DataFrame:
+    """Main function to scrape brand stockists data."""
+    if base_path is None:
+        base_path = Path.cwd()
+    
+    print(f"Working directory: {base_path}")
+    print(f"Using Google domain: {GOOGLE_DOMAIN} (Country: {COUNTRY_CODE.upper()})")
+    
+    # Load configuration
+    api_key = get_api_key()
+    brands = load_brands(base_path)
+    search_queries = create_search_queries(brands)
+    
+    print(f"Processing {len(search_queries)} brand queries...")
+    
+    # Collect all results
+    all_results = []
+    
+    for i, query in enumerate(search_queries, 1):
+        print(f"Searching: {query.strip()} ({i} of {len(search_queries)})")
+        
+        search_data = make_serp_request(query, api_key)
+        if search_data:
+            results = process_search_results(search_data, query)
+            all_results.extend(results)
+        
+        # Be respectful to the API
+        time.sleep(1)
+    
+    # Create and clean dataframe
+    if not all_results:
+        print("No results found!")
+        return pd.DataFrame()
+    
+    df = pd.DataFrame(all_results)
+    df_cleaned = clean_dataframe(df)
+    
+    return df_cleaned
+
+
+def save_results(df: pd.DataFrame, output_path: Path) -> None:
+    """Save results to CSV file."""
+    try:
+        df.to_csv(output_path, index=False)
+        print(f"Results saved to: {output_path}")
+        print(f"Total records: {len(df)}")
+    except Exception as e:
+        print(f"Error saving results: {e}")
+
+
+def main() -> None:
+    """Main execution function."""
+    start_time = time.time()
+    
+    try:
+        # Run the scraping process
+        results_df = scrape_brand_stockists()
+        
+        if not results_df.empty:
+            output_path = Path.cwd() / OUTPUT_FILENAME
+            save_results(results_df, output_path)
+        else:
+            print("No valid results to save.")
+            
+    except Exception as e:
+        print(f"Script failed: {e}")
+        return
+    
+    elapsed_time = time.time() - start_time
+    print(f"\nCompleted in {elapsed_time:.2f} seconds")
+
+
+if __name__ == "__main__":
+    main()

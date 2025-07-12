@@ -182,11 +182,12 @@ def scrape_brand_stockists(base_path: Optional[Path] = None) -> pd.DataFrame:
 
 
 def save_results(df: pd.DataFrame, output_path: Path) -> None:
-    """Save results to CSV file."""
+    """Save results to CSV file with UTF-8-BOM encoding."""
     try:
-        df.to_csv(output_path, index=False)
+        df.to_csv(output_path, index=False, encoding='utf-8-sig')
         print(f"Results saved to: {output_path}")
         print(f"Total records: {len(df)}")
+        print(f"Encoding: UTF-8 with BOM (utf-8-sig)")
     except Exception as e:
         print(f"Error saving results: {e}")
 
